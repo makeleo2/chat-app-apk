@@ -1,0 +1,14 @@
+{
+  "name": "chat-app-apk",
+  "version": "1.0.0",
+  "description": "Build Android APK from website",
+  "scripts": {
+    "build": "bubblewrap build --generateAppBundle=false --type=debug"
+  },
+  "devDependencies": {
+    "@bubblewrap/cli": "^1.19.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
