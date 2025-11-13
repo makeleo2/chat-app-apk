@@ -3,9 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,49 +17,56 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
+        # 重要：这里没有 cache 配置！
+        
+    - name: Install Java JDK
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y default-jdk
+        java -version
         
     - name: Install Bubblewrap CLI
       run: |
         npm install -g @bubblewrap/cli
         bubblewrap --version
         
-    - name: Validate environment
+    - name: Create TWA Manifest
       run: |
-        echo "构建环境检查:"
-        echo "Node版本: $(node --version)"
-        echo "NPM版本: $(npm --version)"
-        echo "Bubblewrap版本: $(bubblewrap --version)"
+        echo "创建 TWA 配置文件..."
+        cat > twa-manifest.json << 'EOF'
+{
+  "packageId": "com.buytem.chat",
+  "host": "chat.buytem.cn",
+  "name": "Chat应用",
+  "launcherName": "Chat",
+  "themeColor": "#2196F3",
+  "backgroundColor": "#FFFFFF",
+  "startUrl": "/",
+  "iconUrl": "https://via.placeholder.com/192x192/2196F3/ffffff?text=Chat",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "orientation": "portrait",
+  "enableNotifications": true,
+  "webManifestUrl": "https://chat.buytem.cn/",
+  "fallbackType": "customtabs"
+}
+EOF
+        echo "TWA 配置文件已创建"
         
-    - name: Initialize TWA project
+    - name: Initialize TWA Project
       run: |
         mkdir -p twa-build
         cd twa-build
-        echo "正在初始化TWA项目..."
         bubblewrap init --manifest=../twa-manifest.json --yes
-      continue-on-error: false
-      
-    - name: Build APK (Debug)
+        
+    - name: Build APK
       run: |
         cd twa-build
-        echo "开始构建APK..."
         bubblewrap build --generateAppBundle=false --type=debug
         
-    - name: List build artifacts
-      run: |
-        echo "构建产物:"
-        ls -la twa-build/
-        find twa-build/ -name "*.apk" -type f
-        
-    - name: Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: chat-app-apk
+        name: chat-app
         path: twa-build/app-debug.apk
         retention-days: 30
-        
-    - name: Build status
-      run: |
-        echo "✅ APK构建成功完成!"
-        echo "📱 生成的APK文件: app-debug.apk"
-        echo "📥 请在右侧Artifacts区域下载"
