@@ -1,0 +1,67 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install Bubblewrap CLI
+      run: |
+        npm install -g @bubblewrap/cli
+        bubblewrap --version
+        
+    - name: Validate environment
+      run: |
+        echo "构建环境检查:"
+        echo "Node版本: $(node --version)"
+        echo "NPM版本: $(npm --version)"
+        echo "Bubblewrap版本: $(bubblewrap --version)"
+        
+    - name: Initialize TWA project
+      run: |
+        mkdir -p twa-build
+        cd twa-build
+        echo "正在初始化TWA项目..."
+        bubblewrap init --manifest=../twa-manifest.json --yes
+      continue-on-error: false
+      
+    - name: Build APK (Debug)
+      run: |
+        cd twa-build
+        echo "开始构建APK..."
+        bubblewrap build --generateAppBundle=false --type=debug
+        
+    - name: List build artifacts
+      run: |
+        echo "构建产物:"
+        ls -la twa-build/
+        find twa-build/ -name "*.apk" -type f
+        
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chat-app-apk
+        path: twa-build/app-debug.apk
+        retention-days: 30
+        
+    - name: Build status
+      run: |
+        echo "✅ APK构建成功完成!"
+        echo "📱 生成的APK文件: app-debug.apk"
+        echo "📥 请在右侧Artifacts区域下载"
