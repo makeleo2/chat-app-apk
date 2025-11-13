@@ -1,49 +1,125 @@
-name: Build APK
+name: Build Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Environment
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk nodejs npm wget unzip
-          npm install -g @bubblewrap/cli
+          sudo apt-get install -y \
+            openjdk-17-jdk \
+            wget \
+            unzip \
+            git \
+            curl
+          echo "JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))" >> $GITHUB_ENV
 
-      - name: Create Manifest
+      - name: Verify Java Installation
         run: |
-          cat > manifest.json << 'EOF'
-          {
-            "packageId": "com.buytem.chat",
-            "host": "chat.buytem.cn", 
-            "name": "Chat App",
-            "startUrl": "/",
-            "iconUrl": "https://via.placeholder.com/192x192/2196F3/ffffff?text=C",
-            "appVersionName": "1.0.0",
-            "appVersionCode": 1
-          }
-          EOF
+          java -version
+          javac -version
+          echo "JAVA_HOME: $JAVA_HOME"
 
-      - name: Initialize and Build
+      - name: Install Bubblewrap CLI
         run: |
-          # 设置环境变量避免交互提示
-          export BUBBLEWRAP_ALLOW_INSTALL_JDK=true
-          export BUBBLEWRAP_ALLOW_DOWNGRADE_JDK=true
-          
+          # 清理npm缓存
+          npm cache clean --force
+          # 安装bubblewrap
+          npm install -g @bubblewrap/cli@1.19.0
+          echo "Bubblewrap version: $(bubblewrap --version)"
+
+      - name: Create TWA Manifest
+        run: |
+          cat > twa-manifest.json << 'EOF'
+{
+  "packageId": "com.buytem.chat",
+  "host": "chat.buytem.cn",
+  "name": "Chat App",
+  "launcherName": "Chat",
+  "themeColor": "#2196F3",
+  "backgroundColor": "#FFFFFF",
+  "startUrl": "/",
+  "iconUrl": "https://via.placeholder.com/192x192/2196F3/ffffff?text=Chat",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "orientation": "portrait",
+  "enableNotifications": false,
+  "fallbackType": "customtabs"
+}
+EOF
+          echo "TWA manifest created"
+
+      - name: Initialize TWA Project
+        run: |
+          # 清理之前的构建
+          rm -rf build
           mkdir -p build
           cd build
-          # 使用yes命令自动回答所有提示
-          yes | bubblewrap init --manifest=../manifest.json
-          yes | bubblewrap build --generateAppBundle=false --type=debug
+          
+          echo "开始初始化TWA项目..."
+          # 使用非交互模式，跳过所有提示
+          bubblewrap init \
+            --manifest=../twa-manifest.json \
+            --skipVersionCheck \
+            --skipPwaValidation \
+            --yes
+          
+          echo "TWA项目初始化完成"
 
-      - uses: actions/upload-artifact@v4
+      - name: Build Debug APK
+        run: |
+          cd build
+          echo "开始构建APK..."
+          
+          # 构建调试版本
+          bubblewrap build \
+            --generateAppBundle=false \
+            --type=debug \
+            --skipSigning
+          
+          echo "APK构建完成"
+
+      - name: Verify APK File
+        run: |
+          if [ -f "build/app-debug.apk" ]; then
+            echo "✅ APK文件生成成功!"
+            ls -lh build/app-debug.apk
+            echo "文件大小: $(du -h build/app-debug.apk | cut -f1)"
+          else
+            echo "❌ APK文件未找到"
+            echo "构建目录内容:"
+            ls -la build/
+            find build/ -name "*.apk" -type f
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: app-apk
+          name: chat-app-debug
           path: build/app-debug.apk
+          retention-days: 30
+
+      - name: Success Notification
+        run: |
+          echo "========================================"
+          echo "🎉 APK构建成功!"
+          echo "📱 文件: app-debug.apk"
+          echo "📥 请在右侧Artifacts区域下载"
+          echo "========================================"
