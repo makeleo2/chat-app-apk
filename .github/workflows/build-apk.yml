@@ -1,11 +1,3 @@
-# 删除旧文件（如果存在）
-rm -f .github/workflows/build-apk.yml
-
-# 创建新文件
-mkdir -p .github/workflows
-
-# 创建工作流文件（复制上面的第一个版本内容）
-cat > .github/workflows/build-apk.yml << 'EOF'
 name: Build Android APK
 
 on:
@@ -77,9 +69,3 @@ EOF
 
       - name: Build Success
         run: echo "✅ APK build completed successfully!"
-EOF
-
-# 提交更改
-git add .github/workflows/build-apk.yml
-git commit -m "fix: correct yaml syntax for workflow"
-git push origin main
