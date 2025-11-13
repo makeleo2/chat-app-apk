@@ -1,29 +1,85 @@
-name: Build APK
-on: [push, workflow_dispatch]
+# 删除旧文件（如果存在）
+rm -f .github/workflows/build-apk.yml
+
+# 创建新文件
+mkdir -p .github/workflows
+
+# 创建工作流文件（复制上面的第一个版本内容）
+cat > .github/workflows/build-apk.yml << 'EOF'
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - run: npm install -g @bubblewrap/cli
-      - run: |
+
+      - name: Install Java JDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jdk
+          java -version
+
+      - name: Install Bubblewrap CLI
+        run: |
+          npm install -g @bubblewrap/cli
+          bubblewrap --version
+
+      - name: Create TWA Manifest
+        run: |
           cat > twa-manifest.json << 'EOF'
 {
   "packageId": "com.buytem.chat",
   "host": "chat.buytem.cn",
   "name": "Chat App",
+  "launcherName": "Chat",
+  "themeColor": "#2196F3",
+  "backgroundColor": "#FFFFFF",
   "startUrl": "/",
-  "iconUrl": "https://via.placeholder.com/192x192/2196F3/ffffff?text=C",
+  "iconUrl": "https://via.placeholder.com/192x192/2196F3/ffffff?text=Chat",
   "appVersionName": "1.0.0",
-  "appVersionCode": 1
+  "appVersionCode": 1,
+  "orientation": "portrait",
+  "enableNotifications": true,
+  "webManifestUrl": "https://chat.buytem.cn/",
+  "fallbackType": "customtabs"
 }
 EOF
-      - run: mkdir build && cd build && bubblewrap init --manifest=../twa-manifest.json --yes
-      - run: cd build && bubblewrap build --generateAppBundle=false --type=debug
-      - uses: actions/upload-artifact@v4
+
+      - name: Initialize TWA Project
+        run: |
+          mkdir -p twa-build
+          cd twa-build
+          bubblewrap init --manifest=../twa-manifest.json --yes
+
+      - name: Build APK
+        run: |
+          cd twa-build
+          bubblewrap build --generateAppBundle=false --type=debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: app-apk
-          path: build/app-debug.apk
+          name: chat-app-apk
+          path: twa-build/app-debug.apk
+          retention-days: 30
+
+      - name: Build Success
+        run: echo "✅ APK build completed successfully!"
+EOF
+
+# 提交更改
+git add .github/workflows/build-apk.yml
+git commit -m "fix: correct yaml syntax for workflow"
+git push origin main
