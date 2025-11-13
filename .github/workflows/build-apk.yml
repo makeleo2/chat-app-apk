@@ -1,32 +1,75 @@
-name: Build APK
+name: Build Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - run: npm install -g @bubblewrap/cli
-      - run: |
-          echo '{
-            "packageId": "com.buytem.chat",
-            "host": "chat.buytem.cn",
-            "name": "Chat App",
-            "startUrl": "/",
-            "iconUrl": "https://via.placeholder.com/192x192/2196F3/ffffff?text=C",
-            "appVersionName": "1.0.0",
-            "appVersionCode": 1
-          }' > twa-manifest.json
-      - run: mkdir build && cd build && bubblewrap init --manifest=../twa-manifest.json --yes
-      - run: cd build && bubblewrap build --generateAppBundle=false --type=debug
-      - uses: actions/upload-artifact@v4
+
+      - name: Install Java JDK and Android SDK
+        run: |
+          sudo apt-get update
+          # 安装JDK 17（Bubblewrap要求的版本）
+          sudo apt-get install -y openjdk-17-jdk
+          # 安装Android SDK依赖
+          sudo apt-get install -y wget unzip
+          java -version
+
+      - name: Install Bubblewrap CLI
+        run: |
+          npm install -g @bubblewrap/cli
+          bubblewrap --version
+
+      - name: Create TWA Manifest
+        run: |
+          cat > twa-manifest.json << 'EOF'
+{
+  "packageId": "com.buytem.chat",
+  "host": "chat.buytem.cn",
+  "name": "Chat App",
+  "launcherName": "Chat",
+  "themeColor": "#2196F3",
+  "backgroundColor": "#FFFFFF",
+  "startUrl": "/",
+  "iconUrl": "https://via.placeholder.com/192x192/2196F3/ffffff?text=Chat",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "orientation": "portrait",
+  "enableNotifications": true,
+  "webManifestUrl": "https://chat.buytem.cn/",
+  "fallbackType": "customtabs"
+}
+EOF
+
+      - name: Initialize TWA Project (Non-interactive)
+        run: |
+          mkdir -p build
+          cd build
+          # 使用echo自动回答所有提示
+          echo -e "Y\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY\nY" | bubblewrap init --manifest=../twa-manifest.json
+
+      - name: Build APK
+        run: |
+          cd build
+          bubblewrap build --generateAppBundle=false --type=debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: app-apk
+          name: chat-app-apk
           path: build/app-debug.apk
+          retention-days: 30
+
+      - name: Build Success
+        run: echo "✅ APK build completed successfully!"
